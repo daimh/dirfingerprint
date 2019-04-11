@@ -104,7 +104,7 @@ class DirObj:
 			if self.min_time > child_dir.min_time: self.min_time = child_dir.min_time
 			if self.max_time < child_dir.max_time: self.max_time = child_dir.max_time
 			self.special_count += child_dir.special_count
-			md5.update(('%s %s\n' % (DirObj._to_iso_if_not_utf8(child_cwd), child_dir.md5sum)).encode())
+			md5.update(('%s %s\n' % (child_cwd, child_dir.md5sum)).encode('utf-8', 'surrogateescape'))
 		self.md5sum = md5.hexdigest()
 		if self.total_count == 0:
 			s_min_time = 'NA'
