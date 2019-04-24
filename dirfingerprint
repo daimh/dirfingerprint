@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-_V='20190411' #Add SubdirCount, and Fingerprint calculation v1 -> v2
+_V='20190424' #fix a bug with gluster, and compatible with python3.4
+#_V='20190411' #Add SubdirCount, and Fingerprint calculation v1 -> v2
 #_V='20190410' #print non-utf-8 character
 #_V='20190409' #refactor on-the-fly
 #_V='20190204' #print stats on-the-fly
@@ -93,7 +94,8 @@ class DirObj:
 			self.min_time = sys.maxsize
 			self.max_time = 0
 		md5 = hashlib.md5()
-		md5.update(f'{self.subdir_count} {self.special_count}\n'.encode())
+#		md5.update(f'{self.subdir_count} {self.special_count}\n'.encode())
+		md5.update(('%d %d\n' % (self.subdir_count, self.special_count)).encode())
 		for fname, fsize, ftime in sorted(self.files):
 			md5.update(('%s %d %d\n' % (fname, fsize, ftime)).encode('utf-8', 'surrogateescape'))
 		for child_cwd, child_dir in sorted(self.dirs.items()):
@@ -117,7 +119,6 @@ class DirObj:
 	def add_dir(self, ano):
 		self.files += ano.files
 		self.special_count += ano.special_count
-		self.subdir_count += ano.subdir_count
 		for ano_cwd, ano_child in ano.dirs.items():
 			self_child = self.dirs.get(ano_cwd)
 			if self_child is None:
