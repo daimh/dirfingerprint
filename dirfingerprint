@@ -137,7 +137,6 @@ def do_one_dir(args, onedir):
 	if not os.path.isdir(realdir):
 		raise Exception('ERR-001: %s is not a directory' % realdir)
 	if args.gluster_brick is not None and args.gluster_brick != ['true']:
-		if not realdir.startswith('/home/'): raise Exception('ERR-002')
 		brick_names, prefixes = [], []
 		for s in args.gluster_brick:
 			sp = s.split(':')
