@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-_V='20190424' #fix a bug with gluster, and compatible with python3.4
+_V='20191011' #-d
+#_V='20190424' #fix a bug with gluster, and compatible with python3.4
 #_V='20190411' #Add SubdirCount, and Fingerprint calculation v1 -> v2
 #_V='20190410' #print non-utf-8 character
 #_V='20190409' #refactor on-the-fly
@@ -50,6 +51,7 @@ $ dirfingerprint --gluster-brick=node1:/brick --gluster-brick=node2:/brick .
 ''')
 	parser.add_argument("DIR", help="directory", nargs='*')
 	parser.add_argument("-x", "--one-file-system", action="store_true", help="skip directories on different file systems")
+	parser.add_argument("-d", "--max-depth", type=int, default=-1, help="print subdirectories at most DEPTH, negative integer prints every subdirectory")
 	parser.add_argument("--gluster-brick", help="HOSTNAME:PREFIX", action='append')
 	parser.add_argument("--version", action="store_true", help="output version information and exit")
 	return parser.parse_args()
@@ -76,13 +78,13 @@ class DirObj:
 					self.special_count += 1
 		except PermissionError as e:
 			print(e, file=sys.stderr)
-		if onthefly: self.finger_print(printdir, onthefly)
+		if onthefly: self.finger_print(printdir, onthefly, 0, args.max_depth)
 	def _to_iso_if_not_utf8(sin):
 		try:
 			return sin.encode('utf-8', 'surrogateescape').decode('utf-8')
 		except UnicodeDecodeError:
 			return sin.encode('utf-8', 'surrogateescape').decode('iso-8859-1')
-	def finger_print(self, path, onthefly):
+	def finger_print(self, path, onthefly, level, max_depth):
 		self.total_bytes = sum([f[1] for f in self.files])
 		self.total_count = len(self.files)
 		self.subdir_count = len(self.dirs)
@@ -99,7 +101,7 @@ class DirObj:
 		for fname, fsize, ftime in sorted(self.files):
 			md5.update(('%s %d %d\n' % (fname, fsize, ftime)).encode('utf-8', 'surrogateescape'))
 		for child_cwd, child_dir in sorted(self.dirs.items()):
-			if not onthefly: child_dir.finger_print(path + '/' + child_cwd, onthefly)
+			if not onthefly: child_dir.finger_print(path + '/' + child_cwd, onthefly, level+1, max_depth)
 			self.total_bytes += child_dir.total_bytes
 			self.total_count += child_dir.total_count
 			self.subdir_count += child_dir.subdir_count
@@ -114,7 +116,8 @@ class DirObj:
 		else:
 			s_min_time = datetime.datetime.fromtimestamp(self.min_time)
 			s_max_time = datetime.datetime.fromtimestamp(self.max_time)
-		print(self.md5sum, self.total_bytes, self.total_count, s_min_time, s_max_time, self.subdir_count, self.special_count, DirObj._to_iso_if_not_utf8(path), sep='\t')
+		if level <= max_depth or max_depth < 0:
+			print(self.md5sum, self.total_bytes, self.total_count, s_min_time, s_max_time, self.subdir_count, self.special_count, DirObj._to_iso_if_not_utf8(path), sep='\t')
 		self.dirs.clear()
 	def add_dir(self, ano):
 		self.files += ano.files
@@ -155,7 +158,7 @@ def do_one_dir(args, onedir):
 				root = brick_dirs[idx]
 			else:
 				root.add_dir(brick_dirs[idx])
-		root.finger_print(onedir, False)
+		root.finger_print(onedir, False, 0, args.max_depth)
 	else:
 		onthefly = args.gluster_brick != ['true']
 #		DirObj.initialize(realdir, args)
