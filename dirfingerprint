@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-_V='20191011' #-d
+_V='20200524' #-b
+#_V='20191011' #-d
 #_V='20190424' #fix a bug with gluster, and compatible with python3.4
 #_V='20190411' #Add SubdirCount, and Fingerprint calculation v1 -> v2
 #_V='20190410' #print non-utf-8 character
@@ -22,7 +23,8 @@ To rub salt in a wound, how can we find the folders that are renamed or moved to
 Further, almost all distributed filesystems don't have a good performance to access their metadata. Repeating some commands such as 'rsync -nav' on them isn't efficient.
 
 Thus, here is 'dirfingerprint', it reports 6 properties for each subdirectories. The properties are calculated on the subdirectory recursively.
-FileBytes:\ttotal size of the regular files. This number should be smaller than a 'du -b' as it counts regular files only.
+FileBytes:\ttotal size of the regular files. This number should be smaller than 'du -b' as dirfingerprint doesn't count directory's size
+FileBlocks:\ttotal blocks of the regular files.
 FileCount:\tcount of the regular files
 FileMinMtime:\tthe oldest mtime of the regular files
 FileMaxMtime:\tthe newest mtime of the regular files
@@ -52,12 +54,13 @@ $ dirfingerprint --gluster-brick=node1:/brick --gluster-brick=node2:/brick .
 	parser.add_argument("DIR", help="directory", nargs='*')
 	parser.add_argument("-x", "--one-file-system", action="store_true", help="skip directories on different file systems")
 	parser.add_argument("-d", "--max-depth", type=int, default=-1, help="print subdirectories at most DEPTH, negative integer prints every subdirectory")
+	parser.add_argument("-b", "--blocks", action="store_true", help="calculate st_blocks instead of st_size")
 	parser.add_argument("--gluster-brick", help="HOSTNAME:PREFIX", action='append')
 	parser.add_argument("--version", action="store_true", help="output version information and exit")
 	return parser.parse_args()
 
 class DirObj:
-	def __init__(self, cwd, printdir, onthefly, prefix, args):
+	def __init__(self, cwd, printdir, prefix, args):
 		self.files = []
 		self.dirs = {}
 		self.special_count = 0
@@ -69,22 +72,23 @@ class DirObj:
 					self.special_count += 1
 				elif os.path.isfile(fullpath):
 					ls = os.lstat(fullpath)
-					if prefix.startswith('/brick/home/') and ls.st_size == 0 and ls.st_mode == 33280: continue
-					self.files.append([ld, ls.st_size, int(ls.st_mtime)])
+					if args.gluster_brick == ['true'] and ls.st_size == 0 and ls.st_mode == 33280: continue
+					file_size = ls.st_blocks if args.blocks else ls.st_size
+					self.files.append([ld, file_size, int(ls.st_mtime)])
 				elif os.path.isdir(fullpath):
 					if os.path.ismount(fullpath) and args.one_file_system: continue
-					self.dirs[ld] = DirObj(cwd + '/' + ld, printdir + '/' + ld, onthefly, prefix, args)
+					self.dirs[ld] = DirObj(cwd + '/' + ld, printdir + '/' + ld, prefix, args)
 				else:
 					self.special_count += 1
 		except PermissionError as e:
 			print(e, file=sys.stderr)
-		if onthefly: self.finger_print(printdir, onthefly, 0, args.max_depth)
+		if args.gluster_brick != ['true']: self.finger_print(printdir, 0, args)
 	def _to_iso_if_not_utf8(sin):
 		try:
 			return sin.encode('utf-8', 'surrogateescape').decode('utf-8')
 		except UnicodeDecodeError:
 			return sin.encode('utf-8', 'surrogateescape').decode('iso-8859-1')
-	def finger_print(self, path, onthefly, level, max_depth):
+	def finger_print(self, path, level, args):
 		self.total_bytes = sum([f[1] for f in self.files])
 		self.total_count = len(self.files)
 		self.subdir_count = len(self.dirs)
@@ -101,7 +105,7 @@ class DirObj:
 		for fname, fsize, ftime in sorted(self.files):
 			md5.update(('%s %d %d\n' % (fname, fsize, ftime)).encode('utf-8', 'surrogateescape'))
 		for child_cwd, child_dir in sorted(self.dirs.items()):
-			if not onthefly: child_dir.finger_print(path + '/' + child_cwd, onthefly, level+1, max_depth)
+			if args.gluster_brick == ['true']: child_dir.finger_print(path + '/' + child_cwd, level+1, args)
 			self.total_bytes += child_dir.total_bytes
 			self.total_count += child_dir.total_count
 			self.subdir_count += child_dir.subdir_count
@@ -116,7 +120,7 @@ class DirObj:
 		else:
 			s_min_time = datetime.datetime.fromtimestamp(self.min_time)
 			s_max_time = datetime.datetime.fromtimestamp(self.max_time)
-		if level <= max_depth or max_depth < 0:
+		if level <= args.max_depth or args.max_depth < 0:
 			print(self.md5sum, self.total_bytes, self.total_count, s_min_time, s_max_time, self.subdir_count, self.special_count, DirObj._to_iso_if_not_utf8(path), sep='\t')
 		self.dirs.clear()
 	def add_dir(self, ano):
@@ -139,6 +143,8 @@ def do_one_dir(args, onedir):
 	realdir = os.path.realpath(onedir)
 	if not os.path.isdir(realdir):
 		raise Exception('ERR-001: %s is not a directory' % realdir)
+	if args.gluster_brick is not None and args.blocks:
+		raise Exception('ERR-002: --blocks cannot be used with --gluster-bricks')
 	if args.gluster_brick is not None and args.gluster_brick != ['true']:
 		brick_names, prefixes = [], []
 		for s in args.gluster_brick:
@@ -158,17 +164,19 @@ def do_one_dir(args, onedir):
 				root = brick_dirs[idx]
 			else:
 				root.add_dir(brick_dirs[idx])
-		root.finger_print(onedir, False, 0, args.max_depth)
+		args.gluster_brick = ['true']
+		root.finger_print(onedir, 0, args)
 	else:
-		onthefly = args.gluster_brick != ['true']
-#		DirObj.initialize(realdir, args)
-		root = DirObj('', onedir, onthefly, realdir, args)
-		if not onthefly: sys.stdout.buffer.write(pickle.dumps(root))
+		root = DirObj('', onedir, realdir, args)
+		if args.gluster_brick == ['true']: sys.stdout.buffer.write(pickle.dumps(root))
 
 def main():
 	args = get_args()
 	if args.version: version()
-	print('FingerPrint(v2)\tFileBytes\tFileCount\tFileMinMtime\tFileMaxMtime\tSubdirCount\tSpecialCount\tDir')
+	if args.blocks:
+		print('FingerPrint(v2)\tFileBlocks\tFileCount\tFileMinMtime\tFileMaxMtime\tSubdirCount\tSpecialCount\tDir')
+	else:
+		print('FingerPrint(v2)\tFileBytes\tFileCount\tFileMinMtime\tFileMaxMtime\tSubdirCount\tSpecialCount\tDir')
 	if args.DIR == []: args.DIR = '.'
 	for onedir in args.DIR:
 		while len(onedir) > 1 and onedir[-1] == '/': onedir = onedir[:-1]
