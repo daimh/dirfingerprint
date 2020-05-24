@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-_V='20200524' #-b
+_V='20200524' #-b, and fixed a bug brought by '-d'
 #_V='20191011' #-d
 #_V='20190424' #fix a bug with gluster, and compatible with python3.4
 #_V='20190411' #Add SubdirCount, and Fingerprint calculation v1 -> v2
@@ -60,7 +60,7 @@ $ dirfingerprint --gluster-brick=node1:/brick --gluster-brick=node2:/brick .
 	return parser.parse_args()
 
 class DirObj:
-	def __init__(self, cwd, printdir, prefix, args):
+	def __init__(self, cwd, printdir, prefix, level, args):
 		self.files = []
 		self.dirs = {}
 		self.special_count = 0
@@ -77,12 +77,12 @@ class DirObj:
 					self.files.append([ld, file_size, int(ls.st_mtime)])
 				elif os.path.isdir(fullpath):
 					if os.path.ismount(fullpath) and args.one_file_system: continue
-					self.dirs[ld] = DirObj(cwd + '/' + ld, printdir + '/' + ld, prefix, args)
+					self.dirs[ld] = DirObj(cwd + '/' + ld, printdir + '/' + ld, prefix, level+1, args)
 				else:
 					self.special_count += 1
 		except PermissionError as e:
 			print(e, file=sys.stderr)
-		if args.gluster_brick != ['true']: self.finger_print(printdir, 0, args)
+		if args.gluster_brick != ['true']: self.finger_print(printdir, level, args)
 	def _to_iso_if_not_utf8(sin):
 		try:
 			return sin.encode('utf-8', 'surrogateescape').decode('utf-8')
@@ -167,7 +167,7 @@ def do_one_dir(args, onedir):
 		args.gluster_brick = ['true']
 		root.finger_print(onedir, 0, args)
 	else:
-		root = DirObj('', onedir, realdir, args)
+		root = DirObj('', onedir, realdir, 0, args)
 		if args.gluster_brick == ['true']: sys.stdout.buffer.write(pickle.dumps(root))
 
 def main():
