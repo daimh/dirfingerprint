@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-_V='20200609' #Depth
+_V='20201006' #Minor header change
+#_V='20200609' #Depth
 #_V='20200524' #-b
 #_V='20191011' #-d
 #_V='20190424' #fix a bug with gluster, and compatible with python3.4
@@ -172,7 +173,7 @@ def do_one_dir(args, onedir):
 def main():
 	args = get_args()
 	if args.version: version()
-	print('FingerPrint(v2)\tFile', 'Blocks' if args.blocks else 'Bytes', '\tFileCount\tFileMinMtime\tFileMaxMtime\tSubdirCount\tSpecialCount\tDepth\tDir', sep='')
+	print('FingerPrint\tFile', 'Blocks' if args.blocks else 'Bytes', '\tFileCount\tFileMinMtime\tFileMaxMtime\tSubdirCount\tSpecialCount\tDepth\tDir', sep='')
 	if args.DIR == []: args.DIR = '.'
 	for onedir in args.DIR:
 		while len(onedir) > 1 and onedir[-1] == '/': onedir = onedir[:-1]
