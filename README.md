@@ -1,4 +1,23 @@
-usage: dirfingerprint [-h] [-x] [--gluster-brick GLUSTER_BRICK] [--version] [DIR [DIR ...]]
+#### Install
+```
+ $ wget https://raw.githubusercontent.com/daimh/dirfingerprint/master/dirfingerprint
+ $ chmod +x dirfingerprint
+```
+#### Example
+* generate a tab delimited file for all directories under /tmp
+```
+$ dirfingerprint /tmp | tee tmp.dfp
+```
+* print information for all directories that have a depth of 2 or less
+```
+$ awk '$8 < 2 || NR == 1' tmp.dfp
+```
+* sort all level-3 subdirectories by their size
+```
+$ awk '$8 == 3' tmp.dfp | sort -k 2n
+```
+
+#### Usage: dirfingerprint [-h] [-x] [--gluster-brick GLUSTER_BRICK] [--version] [DIR [DIR ...]]
 
 It is always a pain in the eyes to compare two huge directories. Command 'du' doesn't work in all cases because it counts the size of each regular file, directory, soft-link, pipe, block device, etc, For example, if a directory has only empty files, 'du' reports a non-zero size for the directory, and the size varies depending on the underlying filesystem type. Most ordinary users actually don't care about those special files' size.
 

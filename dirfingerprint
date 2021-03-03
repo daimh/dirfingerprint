@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-_V='20201006' #Minor header change
+_V='20210303' #f'{NUM:,}'
+#_V='20201006' #Minor header change
 #_V='20200609' #Depth
 #_V='20200524' #-b
 #_V='20191011' #-d
@@ -119,10 +120,10 @@ class DirObj:
 			s_min_time = 'NA'
 			s_max_time = 'NA'
 		else:
-			s_min_time = datetime.datetime.fromtimestamp(self.min_time)
-			s_max_time = datetime.datetime.fromtimestamp(self.max_time)
+			s_min_time = datetime.datetime.fromtimestamp(self.min_time).isoformat()
+			s_max_time = datetime.datetime.fromtimestamp(self.max_time).isoformat()
 		if level <= args.max_depth or args.max_depth < 0:
-			print(self.md5sum, self.total_bytes, self.total_count, s_min_time, s_max_time, self.subdir_count, self.special_count, level, DirObj._to_iso_if_not_utf8(path), sep='\t')
+			print(self.md5sum, f'{self.total_bytes:,}', f'{self.total_count:,}', s_min_time, s_max_time, f'{self.subdir_count:,}', f'{self.special_count:,}', f'{level:,}', DirObj._to_iso_if_not_utf8(path), sep='\t')
 		self.dirs.clear()
 	def add_dir(self, ano):
 		self.files += ano.files
