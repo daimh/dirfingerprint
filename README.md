@@ -6,18 +6,32 @@
 #### Example
 * generate a tab delimited file for all directories under /tmp
 ```
-$ dirfingerprint /tmp | tee tmp.dfp
+$ dirfingerprint hash /tmp | tee 0.dfp
+```
+* find new/moved directory
+```
+$ mkdir /tmp/1 /tmp/2
+$ dirfingerprint hash /tmp > 1.dfp
+$ dirfingerprint diff 0.dfp 1.dfp
+$ mv /tmp/1 /tmp/2
+$ dirfingerprint hash /tmp > 2.dfp
+$ dirfingerprint diff 1.dfp 2.dfp
 ```
 * print information for all directories that have a depth of 2 or less
 ```
-$ awk '$8 < 2 || NR == 1' tmp.dfp
+$ awk '$8 < 2 || NR == 1' 0.dfp
 ```
 * sort all level-3 subdirectories by their size
 ```
-$ awk '$8 == 3' tmp.dfp | sort -k 2n
+$ awk '$8 == 3' 0.dfp | sort -k 2n
+```
+* GlusterFS support, access GlusterFS brick nodes and get the metadata directly without network delay
+
+```
+$ dirfingerprint hash --gluster-brick=node1:/brick --gluster-brick=node2:/brick .
 ```
 
-#### Usage: dirfingerprint [-h] [-x] [--gluster-brick GLUSTER_BRICK] [--version] [DIR [DIR ...]]
+#### Detail
 
 It is always a pain in the eyes to compare two huge directories. Command 'du' doesn't work in all cases because it counts the size of each regular file, directory, soft-link, pipe, block device, etc, For example, if a directory has only empty files, 'du' reports a non-zero size for the directory, and the size varies depending on the underlying filesystem type. Most ordinary users actually don't care about those special files' size.
 
@@ -50,7 +64,7 @@ $ touch -t "201901010101" test/f1
 $ touch -t "201901010101" test/f2
 $ mkdir test/subdir1
 $ mkdir test/subdir1/subdir2
-$ dirfingerprint test
+$ dirfingerprint hash test
 ## FingerPrint calculation of the empty directory 'test/subdir1/subdir2'
 $ echo "0 0" | md5sum
 ## FingerPrint calculation of the directory 'test/subdir1'
@@ -59,27 +73,6 @@ $ echo -e "1 0\nsubdir2 5928dd99059f0c73963285d86f359fdb" | md5sum
 $ stat -c %Y test/f1 test/f2 #get the mtime
 $ echo -e "1 0\nf1 0 1546322460\nf2 0 1546322460\nsubdir1 eecee4276b062aa6c1717dde01094d1d" | md5sum
 ```
-An experimental feature is GlusterFS support, it can access GlusterFS brick nodes and get the metadata directly without network delay. an example is
-
-```
-$ dirfingerprint --gluster-brick=node1:/brick --gluster-brick=node2:/brick .
-```
-
-positional arguments:
-
-  DIR                   directory
-
-
-
-optional arguments:
-
-  -h, --help            show this help message and exit
-
-  -x, --one-file-system skip directories on different file systems
-
-  --gluster-brick GLUSTER_BRICK HOSTNAME:PREFIX
-
-  --version             output version information and exit
 
 ## Copyright
 

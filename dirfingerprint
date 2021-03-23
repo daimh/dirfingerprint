@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-_V='20210303' #f'{NUM:,}'
+_V='20210323' #sub-commands with diff
+#_V='20210303' #f'{NUM:,}'
 #_V='20201006' #Minor header change
 #_V='20200609' #Depth
 #_V='20200524' #-b
@@ -13,56 +14,9 @@ _V='20210303' #f'{NUM:,}'
 #_V='20190108' #support multiple directories now
 #_V='20190107' #initial github release
 import sys, argparse, subprocess, os.path, datetime, pickle, threading, hashlib
-def version():
-	print(_V)
-	sys.exit(0)
-def get_args():
-	parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
-		description='''
-It is always a pain in the eyes to compare two huge directories. Command 'du' doesn't work in all cases because it counts the size of each regular file, directory, soft-link, pipe, block device, etc, For example, if a directory has only empty files, 'du' reports a non-zero size for the directory, and the size varies depending on the underlying filesystem type. Most ordinary users actually don't care about those special files' size.
 
-To rub salt in a wound, how can we find the folders that are renamed or moved to another location?
-
-Further, almost all distributed filesystems don't have a good performance to access their metadata. Repeating some commands such as 'rsync -nav' on them isn't efficient.
-
-Thus, here is 'dirfingerprint', it reports 6 properties for each subdirectories. The properties are calculated on the subdirectory recursively.
-FileBytes:\ttotal size of the regular files. This number should be smaller than 'du -b' as dirfingerprint doesn't count directory's size
-FileBlocks:\ttotal blocks of the regular files.
-FileCount:\tcount of the regular files
-FileMinMtime:\tthe oldest mtime of the regular files
-FileMaxMtime:\tthe newest mtime of the regular files
-SubdirCount:\tcount of all subdirectories
-SpecialCount:\tcount of all special files that are not regular file or directory
-FingerPrint:\ta md5sum based on three parts. The first part is the two numbers of SubdirCount and SpecialCount, the second part is a list of name, size and mtime of the regular files that are one level under the directory, and the third part is a list of name and FingerPrint of all the subdirectories that are one level under the directory.
-Dir:\tname of the subdirectory
-
-Here is an example of how FingerPrint is calculated, run these commands
-$ mkdir test
-$ touch -t "201901010101" test/f1
-$ touch -t "201901010101" test/f2
-$ mkdir test/subdir1
-$ mkdir test/subdir1/subdir2
-$ dirfingerprint test
-#FingerPrint calculation of the empty directory 'test/subdir1/subdir2'
-$ echo "0 0" | md5sum
-#FingerPrint calculation of the directory 'test/subdir1'
-$ echo -e "1 0\\nsubdir2 5928dd99059f0c73963285d86f359fdb" | md5sum
-#FingerPrint calculation of the directory 'test'
-$ stat -c %Y test/f1 test/f2 #get the mtime
-$ echo -e "1 0\\nf1 0 1546322460\\nf2 0 1546322460\\nsubdir1 eecee4276b062aa6c1717dde01094d1d" | md5sum
-
-An experimental feature is GlusterFS support, it can access GlusterFS brick nodes and get the metadata directly without network delay. an example is
-$ dirfingerprint --gluster-brick=node1:/brick --gluster-brick=node2:/brick .
-''')
-	parser.add_argument("DIR", help="directory", nargs='*')
-	parser.add_argument("-x", "--one-file-system", action="store_true", help="skip directories on different file systems")
-	parser.add_argument("-d", "--max-depth", type=int, default=-1, help="print subdirectories at most DEPTH, negative integer prints every subdirectory")
-	parser.add_argument("-b", "--blocks", action="store_true", help="calculate st_blocks instead of st_size")
-	parser.add_argument("--gluster-brick", help="HOSTNAME:PREFIX", action='append')
-	parser.add_argument("--version", action="store_true", help="output version information and exit")
-	return parser.parse_args()
-
-class DirObj:
+## Hash
+class DirHashObj:
 	def __init__(self, cwd, printdir, prefix, level, args):
 		self.files = []
 		self.dirs = {}
@@ -80,7 +34,7 @@ class DirObj:
 					self.files.append([ld, file_size, int(ls.st_mtime)])
 				elif os.path.isdir(fullpath):
 					if os.path.ismount(fullpath) and args.one_file_system: continue
-					self.dirs[ld] = DirObj(cwd + '/' + ld, printdir + '/' + ld, prefix, level+1, args)
+					self.dirs[ld] = DirHashObj(cwd + '/' + ld, printdir + '/' + ld, prefix, level+1, args)
 				else:
 					self.special_count += 1
 		except PermissionError as e:
@@ -123,7 +77,7 @@ class DirObj:
 			s_min_time = datetime.datetime.fromtimestamp(self.min_time).isoformat()
 			s_max_time = datetime.datetime.fromtimestamp(self.max_time).isoformat()
 		if level <= args.max_depth or args.max_depth < 0:
-			print(self.md5sum, f'{self.total_bytes:,}', f'{self.total_count:,}', s_min_time, s_max_time, f'{self.subdir_count:,}', f'{self.special_count:,}', f'{level:,}', DirObj._to_iso_if_not_utf8(path), sep='\t')
+			print(self.md5sum, f'{self.total_bytes:,}', f'{self.total_count:,}', s_min_time, s_max_time, f'{self.subdir_count:,}', f'{self.special_count:,}', f'{level:,}', DirHashObj._to_iso_if_not_utf8(path), sep='\t')
 		self.dirs.clear()
 	def add_dir(self, ano):
 		self.files += ano.files
@@ -168,16 +122,121 @@ def do_one_dir(args, onedir):
 				root.add_dir(brick_dirs[idx])
 		root.finger_print(onedir, True, 0, args)
 	else:
-		root = DirObj('', onedir, realdir, 0, args)
+		root = DirHashObj('', onedir, realdir, 0, args)
 		if args.gluster_brick == ['SSH']: sys.stdout.buffer.write(pickle.dumps(root))
 
-def main():
-	args = get_args()
-	if args.version: version()
+def sub_hash(args):
 	print('FingerPrint\tFile', 'Blocks' if args.blocks else 'Bytes', '\tFileCount\tFileMinMtime\tFileMaxMtime\tSubdirCount\tSpecialCount\tDepth\tDir', sep='')
 	if args.DIR == []: args.DIR = '.'
 	for onedir in args.DIR:
 		while len(onedir) > 1 and onedir[-1] == '/': onedir = onedir[:-1]
 		do_one_dir(args, onedir)
+
+## Diff
+class DirDiffObj:
+	def diff(self):
+		suffix, dels, adds = [], [], []
+		print('ChangedMovedDeletedAdded\tDir')
+		self.print_changed(suffix, dels, adds)
+		self.print_moved_deleted_added(dels, adds)
+	def print_moved_deleted_added(self, dels, adds):
+		dels.sort()
+		adds.sort()
+		deli, addi = len(dels) - 1, len(adds) - 1
+		while deli >= 0 and addi >= 0:
+			if dels[deli][0] == adds[addi][0]:
+				print('M', '/'.join(dels[deli][1]), '->', '/'.join(adds[addi][1]), sep='\t')
+				del dels[deli]
+				del adds[addi]
+				deli -= 1
+				addi -= 1
+			elif dels[deli][0] > adds[addi][0]:
+				deli -= 1
+			else:
+				addi -= 1
+		for it in dels:
+			print('D', '/'.join(it[1]), sep='\t')
+		for it in adds:
+			print('A', '/'.join(it[1]), sep='\t')
+	def print_changed(self, suffix, dels, adds):
+		changed = False
+		if hasattr(self, 'dirs'): 
+			for path, child in self.dirs.items():
+				if child.print_changed(suffix + [path], dels, adds):
+					changed = True
+		if changed: return changed
+		if not hasattr(self, 'fingerprint'): return changed
+		if len(self.fingerprint) == 1:
+			dels.append((self.fingerprint[0], suffix))
+			return True
+		if self.fingerprint[0] == self.fingerprint[1]:
+			return False
+		if self.fingerprint[0] == '':
+			adds.append((self.fingerprint[1], suffix))
+		else:
+			print('C', '/'.join(suffix), sep='\t')
+		return True
+	def add(self, path, fingerprint, is_first, idx):
+		if not hasattr(self, 'dirs'):
+			self.dirs = {}
+		if idx < len(path):
+			child = self.dirs.setdefault(path[idx], DirDiffObj())
+			child.add(path, fingerprint, is_first, idx+1)
+		elif is_first:
+			if hasattr(self, 'fingerprint'):
+				raise Exception(f'ERR-005: f{path} already had a fingerprint the first')
+			self.fingerprint = [fingerprint]
+		else:
+			if not hasattr(self, 'fingerprint'):
+				self.fingerprint = ['']
+			if len(self.fingerprint) != 1:
+				raise Exception(f'ERR-006: f{path} already had a fingerprint in the second file')
+			self.fingerprint.append(fingerprint)
+	def read_file(self, dfpfile, is_first):
+		fp = open(dfpfile)
+		self.is_dfp_or_die(fp)
+		row = 1
+		for ln in fp:
+			row += 1
+			fs = ln.split('\t')
+			if len(fs) != 9 or ln[-1] != '\n': 
+				raise Exception(f'ERR-004: row {row} in {dfpfile} is incomplete')
+			path = fs[8][:-1].split('/')
+			self.add(path, fs[0], is_first, 0)
+		fp.close()
+	def is_dfp_or_die(self, fp):
+		if fp.readline() not in [ 'FingerPrint\tFileBytes\tFileCount\tFileMinMtime\tFileMaxMtime\tSubdirCount\tSpecialCount\tDepth\tDir\n', 'FingerPrint\tFileBlocks\tFileCount\tFileMinMtime\tFileMaxMtime\tSubdirCount\tSpecialCount\tDepth\tDir\n']: 
+			raise Exception(f'ERR-003: {dfpfile} is not a dirfingerprint output file')
+
+def sub_diff(args):
+	dfp = DirDiffObj()
+	dfp.read_file(args.FILE[0], True)
+	dfp.read_file(args.FILE[1], False)
+	dfp.diff()
+
+def main():
+	parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
+		description='''
+sub-command 'hash' recursively calculates a hash for each sub-directory, sub-command 'diff' compare two 'hash' output files
+''')
+	parser.add_argument("--version", action="store_true", help="output version information and exit")
+	subs = parser.add_subparsers(description='use -h with each sub-command')
+	parser_hash = subs.add_parser('hash')
+	parser_hash.add_argument("DIR", help="directory", nargs='*')
+	parser_hash.add_argument("-x", "--one-file-system", action="store_true", help="skip directories on different file systems")
+	parser_hash.add_argument("-d", "--max-depth", type=int, default=-1, help="print subdirectories at most DEPTH, negative integer prints every subdirectory")
+	parser_hash.add_argument("-b", "--blocks", action="store_true", help="calculate st_blocks instead of st_size")
+	parser_hash.add_argument("--gluster-brick", help="HOSTNAME:PREFIX", action='append')
+	parser_hash.set_defaults(func=sub_hash)
+	parser_diff = subs.add_parser('diff')
+	parser_diff.add_argument("FILE", nargs=2, help="compare two dirfingerprint output files")
+	parser_diff.set_defaults(func=sub_diff)
+	args = parser.parse_args()
+	if args.version: 
+		print(_V)
+	elif hasattr(args, 'func'):
+		args.func(args)
+	else:
+		parser.print_help()
 
 if __name__ == '__main__': main()
