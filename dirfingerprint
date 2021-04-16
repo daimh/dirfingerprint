@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-_V='20210323' #sub-commands with diff
+_V='20210416' #more info in diff output
+#_V='20210323' #sub-commands with diff
 #_V='20210303' #f'{NUM:,}'
 #_V='20201006' #Minor header change
 #_V='20200609' #Depth
@@ -136,16 +137,28 @@ def sub_hash(args):
 class DirDiffObj:
 	def diff(self):
 		suffix, dels, adds = [], [], []
-		print('ChangedMovedDeletedAdded\tDir')
+		print('FingerPrint\tFileBytes\tFileCount\tFileMinMtime\tFileMaxMtime\tSubdirCount\tSpecialCount\tDepth\tDir\tChangedMovedDeletedAdded')
 		self.print_changed(suffix, dels, adds)
 		self.print_moved_deleted_added(dels, adds)
+	def get_prop_diffs(self, old, new):
+		prop_diffs = []
+		for i in range(8):
+			if old[i] != new[i]:
+				prop_diffs.append(f'{old[i]}\u21d2{new[i]}')
+			else:
+				prop_diffs.append(old[i])
+		return prop_diffs
 	def print_moved_deleted_added(self, dels, adds):
 		dels.sort()
 		adds.sort()
 		deli, addi = len(dels) - 1, len(adds) - 1
 		while deli >= 0 and addi >= 0:
-			if dels[deli][0] == adds[addi][0]:
-				print('M', '/'.join(dels[deli][1]), '->', '/'.join(adds[addi][1]), sep='\t')
+			if dels[deli][0][0] == adds[addi][0][0]:
+				print(
+					'\t'.join(self.get_prop_diffs(dels[deli][0], adds[addi][0])),
+					f'{"/".join(dels[deli][1])}\u21d2{"/".join(adds[addi][1])}',
+					'M', sep='\t'
+				)
 				del dels[deli]
 				del adds[addi]
 				deli -= 1
@@ -155,9 +168,9 @@ class DirDiffObj:
 			else:
 				addi -= 1
 		for it in dels:
-			print('D', '/'.join(it[1]), sep='\t')
+			print('\t'.join(it[0]), '/'.join(it[1]), 'D', sep='\t')
 		for it in adds:
-			print('A', '/'.join(it[1]), sep='\t')
+			print('\t'.join(it[0]), '/'.join(it[1]), 'A', sep='\t')
 	def print_changed(self, suffix, dels, adds):
 		changed = False
 		if hasattr(self, 'dirs'): 
@@ -165,33 +178,37 @@ class DirDiffObj:
 				if child.print_changed(suffix + [path], dels, adds):
 					changed = True
 		if changed: return changed
-		if not hasattr(self, 'fingerprint'): return changed
-		if len(self.fingerprint) == 1:
-			dels.append((self.fingerprint[0], suffix))
+		if not hasattr(self, 'props'): return changed
+		if len(self.props) == 1:
+			dels.append((self.props[0], suffix))
 			return True
-		if self.fingerprint[0] == self.fingerprint[1]:
+		if self.props[0] is None:
+			adds.append((self.props[1], suffix))
+		elif self.props[0][0] == self.props[1][0]:
 			return False
-		if self.fingerprint[0] == '':
-			adds.append((self.fingerprint[1], suffix))
 		else:
-			print('C', '/'.join(suffix), sep='\t')
+			print(
+				'\t'.join(self.get_prop_diffs(self.props[0], self.props[1])),
+				'/'.join(suffix),
+				'C', sep='\t'
+			)
 		return True
-	def add(self, path, fingerprint, is_first, idx):
+	def add(self, path, props, is_first, idx):
 		if not hasattr(self, 'dirs'):
 			self.dirs = {}
 		if idx < len(path):
 			child = self.dirs.setdefault(path[idx], DirDiffObj())
-			child.add(path, fingerprint, is_first, idx+1)
+			child.add(path, props, is_first, idx+1)
 		elif is_first:
-			if hasattr(self, 'fingerprint'):
-				raise Exception(f'ERR-005: f{path} already had a fingerprint the first')
-			self.fingerprint = [fingerprint]
+			if hasattr(self, 'props'):
+				raise Exception(f'ERR-005: f{path} already had a props the first')
+			self.props = [props]
 		else:
-			if not hasattr(self, 'fingerprint'):
-				self.fingerprint = ['']
-			if len(self.fingerprint) != 1:
-				raise Exception(f'ERR-006: f{path} already had a fingerprint in the second file')
-			self.fingerprint.append(fingerprint)
+			if not hasattr(self, 'props'):
+				self.props = [None]
+			if len(self.props) != 1:
+				raise Exception(f'ERR-006: f{path} already had a props in the second file')
+			self.props.append(props)
 	def read_file(self, dfpfile, is_first):
 		fp = open(dfpfile)
 		self.is_dfp_or_die(fp)
@@ -202,7 +219,7 @@ class DirDiffObj:
 			if len(fs) != 9 or ln[-1] != '\n': 
 				raise Exception(f'ERR-004: row {row} in {dfpfile} is incomplete')
 			path = fs[8][:-1].split('/')
-			self.add(path, fs[0], is_first, 0)
+			self.add(path, fs[:8], is_first, 0)
 		fp.close()
 	def is_dfp_or_die(self, fp):
 		if fp.readline() not in [ 'FingerPrint\tFileBytes\tFileCount\tFileMinMtime\tFileMaxMtime\tSubdirCount\tSpecialCount\tDepth\tDir\n', 'FingerPrint\tFileBlocks\tFileCount\tFileMinMtime\tFileMaxMtime\tSubdirCount\tSpecialCount\tDepth\tDir\n']: 
