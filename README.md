@@ -25,6 +25,10 @@ $ awk '$8 < 2 || NR == 1' 0.dfp
 ```
 $ awk '$8 == 3' 0.dfp | sort -k 2n
 ```
+* find all duplicated subdirectories whose size is greater than 10G
+```
+$ F=20210426.dfp; (head -n 1 $F; join -t $'\t' -j 1 <(tail -n +2 $F | cut -d $'\t' -f 1-2 |sort | uniq -c | grep -v '^      1 ' |awk '{if ($3>10* 2^30) print $2}') <(tail -n +2 $F | sort) ) 
+```
 * GlusterFS support, access GlusterFS brick nodes and get the metadata directly without network delay
 
 ```
