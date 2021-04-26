@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-_V='20210416' #more info in diff output
+_V='20210426' #'hash -T' to turn on thousand-separator
+#_V='20210416' #more info in diff output
 #_V='20210323' #sub-commands with diff
 #_V='20210303' #f'{NUM:,}'
 #_V='20201006' #Minor header change
@@ -78,7 +79,10 @@ class DirHashObj:
 			s_min_time = datetime.datetime.fromtimestamp(self.min_time).isoformat()
 			s_max_time = datetime.datetime.fromtimestamp(self.max_time).isoformat()
 		if level <= args.max_depth or args.max_depth < 0:
-			print(self.md5sum, f'{self.total_bytes:,}', f'{self.total_count:,}', s_min_time, s_max_time, f'{self.subdir_count:,}', f'{self.special_count:,}', f'{level:,}', DirHashObj._to_iso_if_not_utf8(path), sep='\t')
+			if args.thousand_separator:
+				print(self.md5sum, f'{self.total_bytes:,}', f'{self.total_count:,}', s_min_time, s_max_time, f'{self.subdir_count:,}', f'{self.special_count:,}', f'{level:,}', DirHashObj._to_iso_if_not_utf8(path), sep='\t')
+			else:
+				print(self.md5sum, self.total_bytes, self.total_count, s_min_time, s_max_time, self.subdir_count, self.special_count, level, DirHashObj._to_iso_if_not_utf8(path), sep='\t')
 		self.dirs.clear()
 	def add_dir(self, ano):
 		self.files += ano.files
@@ -243,6 +247,7 @@ sub-command 'hash' recursively calculates a hash for each sub-directory, sub-com
 	parser_hash.add_argument("-x", "--one-file-system", action="store_true", help="skip directories on different file systems")
 	parser_hash.add_argument("-d", "--max-depth", type=int, default=-1, help="print subdirectories at most DEPTH, negative integer prints every subdirectory")
 	parser_hash.add_argument("-b", "--blocks", action="store_true", help="calculate st_blocks instead of st_size")
+	parser_hash.add_argument("-T", "--thousand-separator", action="store_true", help="use thousand-separator in number output")
 	parser_hash.add_argument("--gluster-brick", help="HOSTNAME:PREFIX", action='append')
 	parser_hash.set_defaults(func=sub_hash)
 	parser_diff = subs.add_parser('diff')
