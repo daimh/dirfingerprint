@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
-_V='20210426' #'hash -T' to turn on thousand-separator
+#!/usr/bin/python3
+_V='20210708' 
+##git repository holds the history now
+#_V='20210426' #'hash -T' to turn on thousand-separator
 #_V='20210416' #more info in diff output
 #_V='20210323' #sub-commands with diff
 #_V='20210303' #f'{NUM:,}'
@@ -95,7 +97,7 @@ class DirHashObj:
 				self_child.add_dir(ano_child)
 
 def ssh(brick_dirs, idx, args, realexe, brick_name, realdir):
-	cmd = realexe
+	cmd = realexe + " hash"
 	if args.one_file_system: cmd += ' -x'
 	cmd += ' --gluster-brick=SSH ' + realdir
 	brick_dirs[idx] = pickle.loads(subprocess.check_output(['ssh', brick_name, cmd]))
