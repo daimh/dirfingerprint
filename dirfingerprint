@@ -1,24 +1,6 @@
 #!/usr/bin/python3
-_V='20210708' 
-##git repository holds the history now
-#_V='20210426' #'hash -T' to turn on thousand-separator
-#_V='20210416' #more info in diff output
-#_V='20210323' #sub-commands with diff
-#_V='20210303' #f'{NUM:,}'
-#_V='20201006' #Minor header change
-#_V='20200609' #Depth
-#_V='20200524' #-b
-#_V='20191011' #-d
-#_V='20190424' #fix a bug with gluster, and compatible with python3.4
-#_V='20190411' #Add SubdirCount, and Fingerprint calculation v1 -> v2
-#_V='20190410' #print non-utf-8 character
-#_V='20190409' #refactor on-the-fly
-#_V='20190204' #print stats on-the-fly
-#_V='20190119' #default current folder
-#_V='20190108' #support multiple directories now
-#_V='20190107' #initial github release
 import sys, argparse, subprocess, os.path, datetime, pickle, threading, hashlib
-
+_V='20210804' 
 ## Hash
 class DirHashObj:
 	def __init__(self, cwd, printdir, prefix, level, args):
@@ -142,10 +124,11 @@ def sub_hash(args):
 ## Diff
 class DirDiffObj:
 	def diff(self):
-		suffix, dels, adds = [], [], []
 		print('FingerPrint\tFileBytes\tFileCount\tFileMinMtime\tFileMaxMtime\tSubdirCount\tSpecialCount\tDepth\tDir\tChangedMovedDeletedAdded')
-		self.print_changed(suffix, dels, adds)
-		self.print_moved_deleted_added(dels, adds)
+		self.print_changed([])
+		adds, dels = [], []
+		self.get_added_deled([], adds, dels)
+		self.print_moved_added_deled(adds, dels)
 	def get_prop_diffs(self, old, new):
 		prop_diffs = []
 		for i in range(8):
@@ -154,7 +137,15 @@ class DirDiffObj:
 			else:
 				prop_diffs.append(old[i])
 		return prop_diffs
-	def print_moved_deleted_added(self, dels, adds):
+	def get_added_deled(self, suffix, adds, dels):
+		if self.diff == 'A':
+			adds.append((self.props[1], suffix))
+		elif self.diff == 'D':
+			dels.append((self.props[0], suffix))
+		else:
+			for path, child in getattr(self, 'dirs', {}).items():
+				child.get_added_deled(suffix + [path], adds, dels)
+	def print_moved_added_deled(self, adds, dels):
 		dels.sort()
 		adds.sort()
 		deli, addi = len(dels) - 1, len(adds) - 1
@@ -173,32 +164,38 @@ class DirDiffObj:
 				deli -= 1
 			else:
 				addi -= 1
-		for it in dels:
+		for it in sorted(dels, key=lambda it:it[1]):
 			print('\t'.join(it[0]), '/'.join(it[1]), 'D', sep='\t')
-		for it in adds:
+		for it in sorted(adds, key=lambda it:it[1]):
 			print('\t'.join(it[0]), '/'.join(it[1]), 'A', sep='\t')
-	def print_changed(self, suffix, dels, adds):
-		changed = False
-		if hasattr(self, 'dirs'): 
-			for path, child in self.dirs.items():
-				if child.print_changed(suffix + [path], dels, adds):
-					changed = True
-		if changed: return changed
-		if not hasattr(self, 'props'): return changed
+	def print_changed(self, suffix): #C:changed, N: no change, A:added, D:deleted
+		diffs = []
+		for path, child in getattr(self, 'dirs', {}).items():
+			diffs.append(child.print_changed(suffix + [path]))
+		diffs = set(diffs)
+		if not hasattr(self, 'props'): 
+			self.diff = 'N'
+			return 'N'
 		if len(self.props) == 1:
-			dels.append((self.props[0], suffix))
-			return True
+			self.diff = 'D'
+			return 'D'
 		if self.props[0] is None:
-			adds.append((self.props[1], suffix))
-		elif self.props[0][0] == self.props[1][0]:
-			return False
+			self.diff = 'A'
+			return 'A'
+		if len(diffs) == 0 or diffs == set(['N']):
+			if self.props[0][0] == self.props[1][0]:
+				self.diff = 'N'
+				return 'N'
+			else:
+				print('\t'.join(self.get_prop_diffs(self.props[0], self.props[1])), '/'.join(suffix), 'C', sep='\t')
+				self.diff = 'C'
+				return 'C'
+		elif len(diffs) == 1:
+			self.diff = min(diffs)
+			return self.diff
 		else:
-			print(
-				'\t'.join(self.get_prop_diffs(self.props[0], self.props[1])),
-				'/'.join(suffix),
-				'C', sep='\t'
-			)
-		return True
+			self.diff = 'C'
+			return self.diff
 	def add(self, path, props, is_first, idx):
 		if not hasattr(self, 'dirs'):
 			self.dirs = {}

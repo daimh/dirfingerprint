@@ -6,33 +6,33 @@
 #### Example
 * generate a tab delimited file for all directories under /tmp
 ```
-$ dirfingerprint hash /tmp | tee 0.dfp
+dirfingerprint hash /tmp | tee 0.dfp
 ```
 * find new/moved directory
 ```
-$ mkdir /tmp/1 /tmp/2
-$ dirfingerprint hash /tmp > 1.dfp
-$ dirfingerprint diff 0.dfp 1.dfp
-$ mv /tmp/1 /tmp/2
-$ dirfingerprint hash /tmp > 2.dfp
-$ dirfingerprint diff 1.dfp 2.dfp
+mkdir /tmp/1 /tmp/2
+dirfingerprint hash /tmp > 1.dfp
+dirfingerprint diff 0.dfp 1.dfp
+mv /tmp/1 /tmp/2
+dirfingerprint hash /tmp > 2.dfp
+dirfingerprint diff 1.dfp 2.dfp
 ```
 * print information for all directories that have a depth of 2 or less
 ```
-$ awk '$8 < 2 || NR == 1' 0.dfp
+awk '$8 < 2 || NR == 1' 0.dfp
 ```
 * sort all level-3 subdirectories by their size
 ```
-$ awk '$8 == 3' 0.dfp | sort -k 2n
+awk '$8 == 3' 0.dfp | sort -k 2n
 ```
 * find all duplicated subdirectories whose size is greater than 10G
 ```
-$ F=20210426.dfp; (head -n 1 $F; join -t $'\t' -j 1 <(tail -n +2 $F | cut -d $'\t' -f 1-2 |sort | uniq -c | grep -v '^      1 ' |awk '{if ($3>10* 2^30) print $2}') <(tail -n +2 $F | sort) ) 
+F=20210426.dfp; (head -n 1 $F; join -t $'\t' -j 1 <(tail -n +2 $F | cut -d $'\t' -f 1-2 |sort | uniq -c | grep -v '^      1 ' |awk '{if ($3>10* 2^30) print $2}') <(tail -n +2 $F | sort) ) 
 ```
 * GlusterFS support, access GlusterFS brick nodes and get the metadata directly without network delay
 
 ```
-$ dirfingerprint hash --gluster-brick=node1:/brick --gluster-brick=node2:/brick .
+dirfingerprint hash --gluster-brick=node1:/brick --gluster-brick=node2:/brick .
 ```
 
 #### Detail
@@ -63,19 +63,19 @@ Dir:	name of the subdirectory
 
 Here is an example of how FingerPrint is calculated, run these commands
 ```
-$ mkdir test
-$ touch -t "201901010101" test/f1
-$ touch -t "201901010101" test/f2
-$ mkdir test/subdir1
-$ mkdir test/subdir1/subdir2
-$ dirfingerprint hash test
+mkdir test
+touch -t "201901010101" test/f1
+touch -t "201901010101" test/f2
+mkdir test/subdir1
+mkdir test/subdir1/subdir2
+dirfingerprint hash test
 ## FingerPrint calculation of the empty directory 'test/subdir1/subdir2'
-$ echo "0 0" | md5sum
+echo "0 0" | md5sum
 ## FingerPrint calculation of the directory 'test/subdir1'
-$ echo -e "1 0\nsubdir2 5928dd99059f0c73963285d86f359fdb" | md5sum
+echo -e "1 0\nsubdir2 5928dd99059f0c73963285d86f359fdb" | md5sum
 ## FingerPrint calculation of the directory 'test'
-$ stat -c %Y test/f1 test/f2 #get the mtime
-$ echo -e "1 0\nf1 0 1546322460\nf2 0 1546322460\nsubdir1 eecee4276b062aa6c1717dde01094d1d" | md5sum
+stat -c %Y test/f1 test/f2 #get the mtime
+echo -e "1 0\nf1 0 1546322460\nf2 0 1546322460\nsubdir1 eecee4276b062aa6c1717dde01094d1d" | md5sum
 ```
 
 ## Copyright
