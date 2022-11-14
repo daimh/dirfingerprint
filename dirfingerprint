@@ -1,7 +1,14 @@
 #!/usr/bin/python3
-import sys, argparse, subprocess, os.path, datetime, pickle, threading, hashlib
-_V='20210804' 
-## Hash
+import sys
+import argparse
+import subprocess
+import os.path
+import datetime
+import pickle
+import threading
+import hashlib
+
+
 class DirHashObj:
 	def __init__(self, cwd, printdir, prefix, level, args):
 		self.files = []
@@ -9,28 +16,43 @@ class DirHashObj:
 		self.special_count = 0
 		try:
 			for ld in sorted(os.listdir(prefix + cwd)):
-				if args.gluster_brick == ['SSH'] and ld == '.glusterfs': continue
+				if args.gluster_brick == ['SSH'] and ld == '.glusterfs':
+					continue
 				fullpath = prefix + cwd + '/' + ld
 				if os.path.islink(fullpath):
 					self.special_count += 1
 				elif os.path.isfile(fullpath):
 					ls = os.lstat(fullpath)
-					if args.gluster_brick == ['SSH'] and ls.st_size == 0 and ls.st_mode == 33280: continue
+					if (
+						args.gluster_brick == ['SSH']
+						and ls.st_size == 0
+						and ls.st_mode == 33280
+					):
+						continue
 					file_size = ls.st_blocks if args.blocks else ls.st_size
 					self.files.append([ld, file_size, int(ls.st_mtime)])
 				elif os.path.isdir(fullpath):
-					if os.path.ismount(fullpath) and args.one_file_system: continue
-					self.dirs[ld] = DirHashObj(cwd + '/' + ld, printdir + '/' + ld, prefix, level+1, args)
+					if os.path.ismount(fullpath) and args.one_file_system:
+						continue
+					self.dirs[ld] = DirHashObj(
+						cwd + '/' + ld,
+						printdir + '/' + ld,
+						prefix,
+						level+1,
+						args)
 				else:
 					self.special_count += 1
 		except PermissionError as e:
 			print(e, file=sys.stderr)
-		if args.gluster_brick != ['SSH']: self.finger_print(printdir, False, level, args)
+		if args.gluster_brick != ['SSH']:
+			self.finger_print(printdir, False, level, args)
+
 	def _to_iso_if_not_utf8(sin):
 		try:
 			return sin.encode('utf-8', 'surrogateescape').decode('utf-8')
 		except UnicodeDecodeError:
 			return sin.encode('utf-8', 'surrogateescape').decode('iso-8859-1')
+
 	def finger_print(self, path, from_ssh, level, args):
 		self.total_bytes = sum([f[1] for f in self.files])
 		self.total_count = len(self.files)
@@ -45,16 +67,21 @@ class DirHashObj:
 		md5 = hashlib.md5()
 		md5.update(('%d %d\n' % (self.subdir_count, self.special_count)).encode())
 		for fname, fsize, ftime in sorted(self.files):
-			md5.update(('%s %d %d\n' % (fname, fsize, ftime)).encode('utf-8', 'surrogateescape'))
+			md5.update(('%s %d %d\n' % (fname, fsize, ftime)).encode(
+				'utf-8', 'surrogateescape'))
 		for child_cwd, child_dir in sorted(self.dirs.items()):
-			if from_ssh: child_dir.finger_print(path + '/' + child_cwd, from_ssh, level+1, args)
+			if from_ssh:
+				child_dir.finger_print(path + '/' + child_cwd, from_ssh, level+1, args)
 			self.total_bytes += child_dir.total_bytes
 			self.total_count += child_dir.total_count
 			self.subdir_count += child_dir.subdir_count
-			if self.min_time > child_dir.min_time: self.min_time = child_dir.min_time
-			if self.max_time < child_dir.max_time: self.max_time = child_dir.max_time
+			if self.min_time > child_dir.min_time:
+				self.min_time = child_dir.min_time
+			if self.max_time < child_dir.max_time:
+				self.max_time = child_dir.max_time
 			self.special_count += child_dir.special_count
-			md5.update(('%s %s\n' % (child_cwd, child_dir.md5sum)).encode('utf-8', 'surrogateescape'))
+			md5.update(('%s %s\n' % (
+				child_cwd, child_dir.md5sum)).encode('utf-8', 'surrogateescape'))
 		self.md5sum = md5.hexdigest()
 		if self.total_count == 0:
 			s_min_time = 'NA'
@@ -64,10 +91,31 @@ class DirHashObj:
 			s_max_time = datetime.datetime.fromtimestamp(self.max_time).isoformat()
 		if level <= args.max_depth or args.max_depth < 0:
 			if args.thousand_separator:
-				print(self.md5sum, f'{self.total_bytes:,}', f'{self.total_count:,}', s_min_time, s_max_time, f'{self.subdir_count:,}', f'{self.special_count:,}', f'{level:,}', DirHashObj._to_iso_if_not_utf8(path), sep='\t')
+				print(
+					self.md5sum,
+					f'{self.total_bytes:,}',
+					f'{self.total_count:,}',
+					s_min_time,
+					s_max_time,
+					f'{self.subdir_count:,}',
+					f'{self.special_count:,}',
+					f'{level:,}',
+					DirHashObj._to_iso_if_not_utf8(path),
+					sep='\t')
 			else:
-				print(self.md5sum, self.total_bytes, self.total_count, s_min_time, s_max_time, self.subdir_count, self.special_count, level, DirHashObj._to_iso_if_not_utf8(path), sep='\t')
+				print(
+					self.md5sum,
+					self.total_bytes,
+					self.total_count,
+					s_min_time,
+					s_max_time,
+					self.subdir_count,
+					self.special_count,
+					level,
+					DirHashObj._to_iso_if_not_utf8(path),
+					sep='\t')
 		self.dirs.clear()
+
 	def add_dir(self, ano):
 		self.files += ano.files
 		self.special_count += ano.special_count
@@ -78,11 +126,15 @@ class DirHashObj:
 			else:
 				self_child.add_dir(ano_child)
 
+
 def ssh(brick_dirs, idx, args, realexe, brick_name, realdir):
 	cmd = realexe + " hash"
-	if args.one_file_system: cmd += ' -x'
+	if args.one_file_system:
+		cmd += ' -x'
 	cmd += ' --gluster-brick=SSH ' + realdir
-	brick_dirs[idx] = pickle.loads(subprocess.check_output(['ssh', brick_name, cmd]))
+	brick_dirs[idx] = pickle.loads(
+		subprocess.check_output(['ssh', brick_name, cmd]))
+
 
 def do_one_dir(args, onedir):
 	realdir = os.path.realpath(onedir)
@@ -100,7 +152,15 @@ def do_one_dir(args, onedir):
 		realexe = os.path.realpath(sys.argv[0])
 		brick_dirs = [0 for i in range(len(brick_names))]
 		for idx in range(len(brick_names)):
-			t = threading.Thread(target=ssh, args=(brick_dirs, idx, args, realexe, brick_names[idx], prefixes[idx] + realdir))
+			t = threading.Thread(
+				target=ssh,
+				args=(
+					brick_dirs,
+					idx,
+					args,
+					realexe,
+					brick_names[idx],
+					prefixes[idx] + realdir))
 			t.start()
 			threads.append(t)
 		for idx in range(len(brick_names)):
@@ -112,23 +172,47 @@ def do_one_dir(args, onedir):
 		root.finger_print(onedir, True, 0, args)
 	else:
 		root = DirHashObj('', onedir, realdir, 0, args)
-		if args.gluster_brick == ['SSH']: sys.stdout.buffer.write(pickle.dumps(root))
+		if args.gluster_brick == ['SSH']:
+			sys.stdout.buffer.write(pickle.dumps(root))
+
 
 def sub_hash(args):
-	print('FingerPrint\tFile', 'Blocks' if args.blocks else 'Bytes', '\tFileCount\tFileMinMtime\tFileMaxMtime\tSubdirCount\tSpecialCount\tDepth\tDir', sep='')
-	if args.DIR == []: args.DIR = '.'
+	print(
+		'FingerPrint\tFile',
+		'Blocks' if args.blocks else 'Bytes',
+		'\tFileCount'
+		'\tFileMinMtime'
+		'\tFileMaxMtime'
+		'\tSubdirCount'
+		'\tSpecialCount'
+		'\tDepth'
+		'\tDir', sep='')
+	if args.DIR == []:
+		args.DIR = '.'
 	for onedir in args.DIR:
-		while len(onedir) > 1 and onedir[-1] == '/': onedir = onedir[:-1]
+		while len(onedir) > 1 and onedir[-1] == '/':
+			onedir = onedir[:-1]
 		do_one_dir(args, onedir)
 
-## Diff
+
 class DirDiffObj:
 	def diff(self):
-		print('FingerPrint\tFileBytes\tFileCount\tFileMinMtime\tFileMaxMtime\tSubdirCount\tSpecialCount\tDepth\tDir\tChangedMovedDeletedAdded')
+		print(
+			'FingerPrint'
+			'\tFileBytes'
+			'\tFileCount'
+			'\tFileMinMtime'
+			'\tFileMaxMtime'
+			'\tSubdirCount'
+			'\tSpecialCount'
+			'\tDepth'
+			'\tDir'
+			'\tChangedMovedDeletedAdded')
 		self.print_changed([])
 		adds, dels = [], []
 		self.get_added_deled([], adds, dels)
 		self.print_moved_added_deled(adds, dels)
+
 	def get_prop_diffs(self, old, new):
 		prop_diffs = []
 		for i in range(8):
@@ -137,6 +221,7 @@ class DirDiffObj:
 			else:
 				prop_diffs.append(old[i])
 		return prop_diffs
+
 	def get_added_deled(self, suffix, adds, dels):
 		if self.diff == 'A':
 			adds.append((self.props[1], suffix))
@@ -145,6 +230,7 @@ class DirDiffObj:
 		else:
 			for path, child in getattr(self, 'dirs', {}).items():
 				child.get_added_deled(suffix + [path], adds, dels)
+
 	def print_moved_added_deled(self, adds, dels):
 		dels.sort()
 		adds.sort()
@@ -164,16 +250,17 @@ class DirDiffObj:
 				deli -= 1
 			else:
 				addi -= 1
-		for it in sorted(dels, key=lambda it:it[1]):
+		for it in sorted(dels, key=lambda it: it[1]):
 			print('\t'.join(it[0]), '/'.join(it[1]), 'D', sep='\t')
-		for it in sorted(adds, key=lambda it:it[1]):
+		for it in sorted(adds, key=lambda it: it[1]):
 			print('\t'.join(it[0]), '/'.join(it[1]), 'A', sep='\t')
-	def print_changed(self, suffix): #C:changed, N: no change, A:added, D:deleted
+
+	def print_changed(self, suffix):		# C:changed, N:no change, A:added, D:deleted
 		diffs = []
 		for path, child in getattr(self, 'dirs', {}).items():
 			diffs.append(child.print_changed(suffix + [path]))
 		diffs = set(diffs)
-		if not hasattr(self, 'props'): 
+		if not hasattr(self, 'props'):
 			self.diff = 'N'
 			return 'N'
 		if len(self.props) == 1:
@@ -187,7 +274,11 @@ class DirDiffObj:
 				self.diff = 'N'
 				return 'N'
 			else:
-				print('\t'.join(self.get_prop_diffs(self.props[0], self.props[1])), '/'.join(suffix), 'C', sep='\t')
+				print('\t'.join(
+					self.get_prop_diffs(
+						self.props[0],
+						self.props[1]
+					)), '/'.join(suffix), 'C', sep='\t')
 				self.diff = 'C'
 				return 'C'
 		elif len(diffs) == 1:
@@ -196,6 +287,7 @@ class DirDiffObj:
 		else:
 			self.diff = 'C'
 			return self.diff
+
 	def add(self, path, props, is_first, idx):
 		if not hasattr(self, 'dirs'):
 			self.dirs = {}
@@ -212,6 +304,7 @@ class DirDiffObj:
 			if len(self.props) != 1:
 				raise Exception(f'ERR-006: f{path} already had a props in the second file')
 			self.props.append(props)
+
 	def read_file(self, dfpfile, is_first):
 		fp = open(dfpfile)
 		self.is_dfp_or_die(fp)
@@ -219,14 +312,26 @@ class DirDiffObj:
 		for ln in fp:
 			row += 1
 			fs = ln.split('\t')
-			if len(fs) != 9 or ln[-1] != '\n': 
+			if len(fs) != 9 or ln[-1] != '\n':
 				raise Exception(f'ERR-004: row {row} in {dfpfile} is incomplete')
 			path = fs[8][:-1].split('/')
 			self.add(path, fs[:8], is_first, 0)
 		fp.close()
+
 	def is_dfp_or_die(self, fp):
-		if fp.readline() not in [ 'FingerPrint\tFileBytes\tFileCount\tFileMinMtime\tFileMaxMtime\tSubdirCount\tSpecialCount\tDepth\tDir\n', 'FingerPrint\tFileBlocks\tFileCount\tFileMinMtime\tFileMaxMtime\tSubdirCount\tSpecialCount\tDepth\tDir\n']: 
+		if fp.readline() not in [
+			'FingerPrint'
+			'\tFileBytes'
+			'\tFileCount'
+			'\tFileMinMtime'
+			'\tFileMaxMtime'
+			'\tSubdirCount'
+			'\tSpecialCount'
+			'\tDepth'
+			'\tDir\n'
+		]:
 			raise Exception(f'ERR-003: {dfpfile} is not a dirfingerprint output file')
+
 
 def sub_diff(args):
 	dfp = DirDiffObj()
@@ -234,30 +339,58 @@ def sub_diff(args):
 	dfp.read_file(args.FILE[1], False)
 	dfp.diff()
 
+
 def main():
-	parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
-		description='''
-sub-command 'hash' recursively calculates a hash for each sub-directory, sub-command 'diff' compare two 'hash' output files
-''')
-	parser.add_argument("--version", action="store_true", help="output version information and exit")
+	parser = argparse.ArgumentParser(
+		formatter_class=argparse.RawDescriptionHelpFormatter,
+		description=(
+			"sub-command 'hash' recursively calculates a hash for each"
+			" sub-directory, sub-command 'diff' compare two 'hash' output"
+			" files"))
+	parser.add_argument(
+		"--version",
+		action="store_true",
+		help="output version information and exit")
 	subs = parser.add_subparsers(description='use -h with each sub-command')
 	parser_hash = subs.add_parser('hash')
 	parser_hash.add_argument("DIR", help="directory", nargs='*')
-	parser_hash.add_argument("-x", "--one-file-system", action="store_true", help="skip directories on different file systems")
-	parser_hash.add_argument("-d", "--max-depth", type=int, default=-1, help="print subdirectories at most DEPTH, negative integer prints every subdirectory")
-	parser_hash.add_argument("-b", "--blocks", action="store_true", help="calculate st_blocks instead of st_size")
-	parser_hash.add_argument("-T", "--thousand-separator", action="store_true", help="use thousand-separator in number output")
-	parser_hash.add_argument("--gluster-brick", help="HOSTNAME:PREFIX", action='append')
+	parser_hash.add_argument(
+		"-x",
+		"--one-file-system",
+		action="store_true",
+		help="skip directories on different file systems")
+	parser_hash.add_argument(
+		"-d",
+		"--max-depth",
+		type=int,
+		default=-1,
+		help="print subdirectories at most DEPTH, negative integer prints"
+		"every subdirectory")
+	parser_hash.add_argument(
+		"-b",
+		"--blocks",
+		action="store_true",
+		help="calculate st_blocks instead of st_size")
+	parser_hash.add_argument(
+		"-T",
+		"--thousand-separator",
+		action="store_true",
+		help="use thousand-separator in number output")
+	parser_hash.add_argument(
+		"--gluster-brick", help="HOSTNAME:PREFIX", action='append')
 	parser_hash.set_defaults(func=sub_hash)
 	parser_diff = subs.add_parser('diff')
-	parser_diff.add_argument("FILE", nargs=2, help="compare two dirfingerprint output files")
+	parser_diff.add_argument(
+		"FILE", nargs=2, help="compare two dirfingerprint output files")
 	parser_diff.set_defaults(func=sub_diff)
 	args = parser.parse_args()
-	if args.version: 
-		print(_V)
+	if args.version:
+		print('20221113')
 	elif hasattr(args, 'func'):
 		args.func(args)
 	else:
 		parser.print_help()
 
-if __name__ == '__main__': main()
+
+if __name__ == '__main__':
+	main()
