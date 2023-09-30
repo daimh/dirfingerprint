@@ -218,7 +218,7 @@ class DirDiffObj:
 		prop_diffs = []
 		for i in range(8):
 			if old[i] != new[i]:
-				prop_diffs.append(f'{old[i]}\u21d2{new[i]}')
+				prop_diffs.append(f'{old[i]} => {new[i]}')
 			else:
 				prop_diffs.append(old[i])
 		return prop_diffs
@@ -241,7 +241,7 @@ class DirDiffObj:
 				if diff:
 					print(
 						'\t'.join(self.get_prop_diffs(dels[deli][0], adds[addi][0])),
-						f'{"/".join(dels[deli][1])}\u21d2{"/".join(adds[addi][1])}',
+						f'{"/".join(dels[deli][1])} => {"/".join(adds[addi][1])}',
 						'M', sep='\t')
 				else:
 					print(
