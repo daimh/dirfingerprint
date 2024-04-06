@@ -165,6 +165,8 @@ def do_one_dir(args, onedir):
 			threads.append(t)
 		for idx in range(len(brick_names)):
 			threads[idx].join()
+			if not isinstance(brick_dirs[idx], DirHashObj):
+				raise Exception(f'ERR-007: ssh to "{brick_names[idx]}" failed')
 			if idx == 0:
 				root = brick_dirs[idx]
 			else:
@@ -428,7 +430,7 @@ def main():
 	parser_rsync.set_defaults(func=sub_rsync)
 	args = parser.parse_args()
 	if args.version:
-		print('20221113')
+		print('20240406')
 	elif hasattr(args, 'func'):
 		args.func(args)
 	else:
