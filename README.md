@@ -2,96 +2,143 @@
 
 <details>
 <summary>Table of contents</summary>
+
 <ol>
-    <li><a href='#about'>About</a></li>
-    <li><a href='#install'>Install</a></li>
-    <li><a href='#example'>Example</a></li>
-    <li><a href='#license'>License</a></li>
-    <li><a href='#acknowledgment'>Acknowledgment</a></li>
-<ol>
+  <li><a href="#about">About</a></li>
+  <li><a href="#install">Install</a></li>
+  <li><a href="#example">Example</a></li>
+  <li><a href="#license">License</a></li>
+  <li><a href="#acknowledgment">Acknowledgment</a></li>
+</ol>
+
 </details>
 
+---
+
 ## About
-It is always a pain in the eyes to compare two huge directories. Command 'du' doesn't work in all cases because it also counts the metadata size, For example, if a directory has only empty files, 'du' reports a non-zero size for the directory and the size varies depending on the underlying filesystem type. Most ordinary users don't care about size of any non-files. Further, how can we find the directories that were renamed or moved to another location?
 
-In addition, it is not efficient to 'rsync' a huge directory, because rsync is not parallel (yet). We would always want to run multiple rsync processes to speed up huge transfer.
+Comparing large directories is often painful, especially across different filesystems.
 
-Thus, here is 'dirfingerprint', it reports the following properties for each subdirectory. The properties are calculated on the subdirectory recursively. Then user can use the output files to compare two directories or generate an rsync scripts to synchronize them in parallel.
+The standard `du` command is not always helpful because it includes metadata size. For example, a directory containing only empty files can still report a non-zero size, and that value varies depending on the filesystem. Most users only care about the size of actual file contents, not metadata.
 
-FingerPrint:	a md5sum based on three parts. The first part is the two numbers of SubdirCount and SpecialCount, the second part is a list of name, size, and mtime of the regular files that are one level under the directory, and the third part is a list of name and FingerPrint of all the subdirectories that are one level under the directory.
+Another common problem: detecting directories that have been renamed or moved.
 
-FileBytes:	total size of the regular files. This number should be smaller than a 'du -b' as it counts regular files only.
+On top of that, using `rsync` for large transfers is inefficient since it is not parallel. In practice, running multiple `rsync` processes significantly improves performance, especially for directories that have a lot of small files.
 
-FileCount:	count of the regular files
+**Dirfingerprint** addresses these issues by generating a set of properties for every subdirectory (recursively). These properties can then be used to:
 
-FileMinMtime:	the oldest mtime of the regular files
+- Compare directory trees
+- Detect moved or renamed directories
+- Generate parallel `rsync` scripts
 
-FileMaxMtime:	the newest mtime of the regular files
+### Reported Properties
 
-SubdirCount:	count of all subdirectories
+Each subdirectory is described by:
 
-SpecialCount:	count of all special files that are not regular file or directory
+- **FingerPrint**  
+  An MD5 hash based on three components:
+  1. Counts of `SubdirCount` and `SpecialCount`
+  2. List of `(name, size, mtime)` for regular files (one level deep)
+  3. List of `(name, FingerPrint)` for subdirectories (one level deep)
 
-Depth:	depth of the sub-directory, 0 is the root directory
+- **FileBytes**  
+  Total size of regular files only (always ≤ `du -b`)
 
-Dir:	name of the subdirectory
+- **FileCount**  
+  Number of regular files
+
+- **FileMinMtime**  
+  Oldest modification time among files
+
+- **FileMaxMtime**  
+  Newest modification time among files
+
+- **SubdirCount**  
+  Number of subdirectories
+
+- **SpecialCount**  
+  Number of non-regular, non-directory files
+
+- **Depth**  
+  Depth of the subdirectory (root = 0)
+
+- **Dir**  
+  Subdirectory name
+
+---
 
 ## Install
+
+```bash
+wget https://raw.githubusercontent.com/daimh/dirfingerprint/master/dirfingerprint
+chmod +x dirfingerprint
+./dirfingerprint -h
 ```
- $ wget https://raw.githubusercontent.com/daimh/dirfingerprint/master/dirfingerprint
- $ chmod +x dirfingerprint
- $ ./dirfingerprint -h
-```
+
+---
+
 ## Example
-* generate a hash for all subdirectories under /tmp
-```
+
+### Generate fingerprints for all subdirectories under `/tmp`
+
+```bash
 (cd /tmp; dirfingerprint hash) > 0.dfp
 ```
-* find new/moved directory
-```
+
+### Detect new or moved directories
+
+```bash
 mkdir /tmp/1 /tmp/2
+
 (cd /tmp; dirfingerprint hash) > 1.dfp
 dirfingerprint diff 0.dfp 1.dfp
+
 mv /tmp/1 /tmp/2
+
 (cd /tmp; dirfingerprint hash) > 2.dfp
 dirfingerprint diff 1.dfp 2.dfp
 dirfingerprint diff 0.dfp 2.dfp
 ```
-* generate rsync commands to for parallel transfer
-```
-dirfingerprint rsync 0.dfp 2.dfp user@host:src/ 
+
+### Generate parallel `rsync` commands
+
+```bash
+dirfingerprint rsync 0.dfp 2.dfp user@host:src/
 dirfingerprint rsync 0.dfp 2.dfp user@host:src/ | parallel -j 8
 ```
-* print information for all directories that have a depth of 2 or less
-```
+
+### Filter directories by depth (≤ 2)
+
+```bash
 awk '$8 < 2' 0.dfp
 ```
-* sort all level-3 subdirectories by their size
-```
+
+### Sort level-3 subdirectories by size
+
+```bash
 awk '$8 == 2' 2.dfp | sort -k 2n
 ```
-* GlusterFS support, access GlusterFS brick nodes and get the metadata directly without the overhead caused by fuse
 
-```
-dirfingerprint hash --gluster-brick=node1:/brick --gluster-brick=node2:/brick .
-```
+---
 
 ## License
 
 Developed by [Manhong Dai](mailto:daimh@umich.edu)
 
-Copyright © 2022 University of Michigan. License [GPLv3+](https://gnu.org/licenses/gpl.html): GNU GPL version 3 or later 
+Copyright © 2022 University of Michigan
 
-This is free software: you are free to change and redistribute it.
+Licensed under [GPLv3+](https://gnu.org/licenses/gpl.html)  
+(GNU GPL version 3 or later)
 
-There is NO WARRANTY, to the extent permitted by law.
+This is free software: you are free to modify and redistribute it.
+
+**No warranty** is provided, to the extent permitted by law.
+
+---
 
 ## Acknowledgment
 
-Ruth Freedman, MPH, former administrator of MNI, UMICH
-
-Fan Meng, Ph.D., Research Associate Professor, Psychiatry, UMICH
-
-Huda Akil, Ph.D., Director of MNI, UMICH
-
-Stanley J. Watson, M.D., Ph.D., Director of MNI, UMICH
+- Ruth Freedman, MPH — Former Administrator, MNI, UMICH  
+- Fan Meng, Ph.D. — Research Associate Professor, Psychiatry, UMICH  
+- Huda Akil, Ph.D. — Director, MNI, UMICH  
+- Stanley J. Watson, M.D., Ph.D. — Director, MNI, UMICH  
