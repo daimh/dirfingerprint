@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -eEuo pipefail
+[ -f ../dirfingerprint ]
+function clean() {
+	rm -rf 1-*
+}
+clean
+mkdir 1-dir
+(
+	cd 1-dir
+	touch -d @0 file1
+	ln -s file1 file2
+	mkdir dir-rsync dir-mv dir-rm
+	(
+		cd dir-rsync
+		touch -d @31536000 file3
+		ln -s file3 file4
+	)
+	(
+		cd dir-mv
+		touch -d @63072000 file4
+	)
+	(
+		cd dir-rm
+		touch -d @0 file5
+	)
+)
+../dirfingerprint hash 1-dir | tee 1-src.dfp > 1-diff
+../dirfingerprint hash -c 1-dir | tee 1-src-c.dfp >> 1-diff
+(
+	cd 1-dir
+	(
+		cd dir-rsync
+		mv file3 file3-new
+	)
+	mv dir-mv dir-mv-dest
+	rm -r dir-rm
+)
+../dirfingerprint hash 1-dir | tee 1-dest.dfp >> 1-diff
+../dirfingerprint hash -c 1-dir | tee 1-dest-c.dfp >> 1-diff
+../dirfingerprint diff 1-src.dfp 1-dest.dfp >> 1-diff
+../dirfingerprint diff -r "node1:/home/" 1-src.dfp 1-dest.dfp >> 1-diff
+../dirfingerprint diff 1-src-c.dfp 1-dest-c.dfp >> 1-diff
+../dirfingerprint diff -r "node1:/home/" 1-src-c.dfp 1-dest-c.dfp >> 1-diff
+diff 1.base 1-diff
+clean
+echo GOOD

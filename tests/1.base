@@ -1,0 +1,32 @@
+FingerPrint	Depth	FileCount	SubdirCount	FileBytes	FileMinMtime	FileMaxMtime	SpecialCount	Dir
+5e372b0277af6df4948905247e71b918	1	1	0	0	1971-12-31T19:00:00	1971-12-31T19:00:00	0	1-dir/dir-mv
+4c551ef5df0fd1b1ae1a0e5956155e55	1	1	0	0	1969-12-31T19:00:00	1969-12-31T19:00:00	0	1-dir/dir-rm
+b778ff2da58a0a21ca26f40eb2792068	1	1	0	0	1970-12-31T19:00:00	1970-12-31T19:00:00	1	1-dir/dir-rsync
+dd54ea9a3ef0c4db16f35f7e51927d69	0	4	3	0	1969-12-31T19:00:00	1971-12-31T19:00:00	2	1-dir
+FingerPrint	Depth	FileCount	SubdirCount	Dir
+4fb2c382711d9683221ab3cc5e35ba04	1	1	0	1-dir/dir-mv
+4c551ef5df0fd1b1ae1a0e5956155e55	1	1	0	1-dir/dir-rm
+8dea4a2f1f9e12ffaf2df20a94bde9e7	1	2	0	1-dir/dir-rsync
+1fb29696d9540756699ce0300d2d419a	0	6	3	1-dir
+FingerPrint	Depth	FileCount	SubdirCount	FileBytes	FileMinMtime	FileMaxMtime	SpecialCount	Dir
+5e372b0277af6df4948905247e71b918	1	1	0	0	1971-12-31T19:00:00	1971-12-31T19:00:00	0	1-dir/dir-mv-dest
+04b7d7581e9ace75203e433eec93b625	1	1	0	0	1970-12-31T19:00:00	1970-12-31T19:00:00	1	1-dir/dir-rsync
+0db97d98382991b8f6c8ec525d4965bb	0	3	2	0	1969-12-31T19:00:00	1971-12-31T19:00:00	2	1-dir
+FingerPrint	Depth	FileCount	SubdirCount	Dir
+4fb2c382711d9683221ab3cc5e35ba04	1	1	0	1-dir/dir-mv-dest
+08a17e89152df3cba1a2104eb4cd37d2	1	2	0	1-dir/dir-rsync
+1aa4031f4ea2de1f57447956b0d45a41	0	5	2	1-dir
+FingerPrint	Depth	FileCount	SubdirCount	FileBytes	FileMinMtime	FileMaxMtime	SpecialCount	Dir
+04b7d7581e9ace75203e433eec93b625 => b778ff2da58a0a21ca26f40eb2792068	1	1	0	0	1970-12-31T19:00:00	1970-12-31T19:00:00	1	1-dir/dir-rsync	C
+5e372b0277af6df4948905247e71b918	1	1	0	0	1971-12-31T19:00:00	1971-12-31T19:00:00	0	1-dir/dir-mv-dest => 1-dir/dir-mv	M
+4c551ef5df0fd1b1ae1a0e5956155e55	1	1	0	0	1969-12-31T19:00:00	1969-12-31T19:00:00	0	1-dir/dir-rm	A
+rsync -av --del node1:/home/1-dir/dir-rsync/ 1-dir/dir-rsync/
+mv 1-dir/dir-mv 1-dir/dir-mv-dest
+rm -rf 1-dir/dir-rm
+FingerPrint	Depth	FileCount	SubdirCount	Dir
+08a17e89152df3cba1a2104eb4cd37d2 => 8dea4a2f1f9e12ffaf2df20a94bde9e7	1	2	0	1-dir/dir-rsync	C
+4fb2c382711d9683221ab3cc5e35ba04	1	1	0	1-dir/dir-mv-dest => 1-dir/dir-mv	M
+4c551ef5df0fd1b1ae1a0e5956155e55	1	1	0	1-dir/dir-rm	A
+rsync -av --del node1:/home/1-dir/dir-rsync/ 1-dir/dir-rsync/
+mv 1-dir/dir-mv 1-dir/dir-mv-dest
+rm -rf 1-dir/dir-rm

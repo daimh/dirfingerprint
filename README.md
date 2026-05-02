@@ -29,40 +29,40 @@ On top of that, using `rsync` for large transfers is inefficient since it is not
 
 - Compare directory trees
 - Detect moved or renamed directories
-- Generate parallel `rsync` scripts
+- Generate `rsync` scripts
 
 ### Reported Properties
 
 Each subdirectory is described by:
 
-- **FingerPrint**  
+- **FingerPrint**
   An MD5 hash based on three components:
   1. Counts of `SubdirCount` and `SpecialCount`
   2. List of `(name, size, mtime)` for regular files (one level deep)
   3. List of `(name, FingerPrint)` for subdirectories (one level deep)
 
-- **FileBytes**  
-  Total size of regular files only (always ≤ `du -b`)
-
-- **FileCount**  
-  Number of regular files
-
-- **FileMinMtime**  
-  Oldest modification time among files
-
-- **FileMaxMtime**  
-  Newest modification time among files
-
-- **SubdirCount**  
-  Number of subdirectories
-
-- **SpecialCount**  
-  Number of non-regular, non-directory files
-
-- **Depth**  
+- **Depth**
   Depth of the subdirectory (root = 0)
 
-- **Dir**  
+- **FileCount**
+  Number of regular files
+
+- **SubdirCount**
+  Number of subdirectories
+
+- **FileBytes**
+  Total size of regular files only (always ≤ `du -b`)
+
+- **FileMinMtime**
+  Oldest modification time among files
+
+- **FileMaxMtime**
+  Newest modification time among files
+
+- **SpecialCount**
+  Number of non-regular, non-directory files
+
+- **Dir**
   Subdirectory name
 
 ---
@@ -83,6 +83,7 @@ chmod +x dirfingerprint
 
 ```bash
 (cd /tmp; dirfingerprint hash) > 0.dfp
+column -ts $'\t' 0.dfp
 ```
 
 ### Detect new or moved directories
@@ -100,23 +101,10 @@ dirfingerprint diff 1.dfp 2.dfp
 dirfingerprint diff 0.dfp 2.dfp
 ```
 
-### Generate parallel `rsync` commands
+### Generate `rsync` commands
 
 ```bash
-dirfingerprint rsync 0.dfp 2.dfp user@host:src/
-dirfingerprint rsync 0.dfp 2.dfp user@host:src/ | parallel -j 8
-```
-
-### Filter directories by depth (≤ 2)
-
-```bash
-awk '$8 < 2' 0.dfp
-```
-
-### Sort level-3 subdirectories by size
-
-```bash
-awk '$8 == 2' 2.dfp | sort -k 2n
+dirfingerprint diff -r "server:/home/" 0.dfp 2.dfp
 ```
 
 ---
@@ -127,7 +115,7 @@ Developed by [Manhong Dai](mailto:daimh@umich.edu)
 
 Copyright © 2022 University of Michigan
 
-Licensed under [GPLv3+](https://gnu.org/licenses/gpl.html)  
+Licensed under [GPLv3+](https://gnu.org/licenses/gpl.html)
 (GNU GPL version 3 or later)
 
 This is free software: you are free to modify and redistribute it.
@@ -138,7 +126,7 @@ This is free software: you are free to modify and redistribute it.
 
 ## Acknowledgment
 
-- Ruth Freedman, MPH — Former Administrator, MNI, UMICH  
-- Fan Meng, Ph.D. — Research Associate Professor, Psychiatry, UMICH  
-- Huda Akil, Ph.D. — Director, MNI, UMICH  
-- Stanley J. Watson, M.D., Ph.D. — Director, MNI, UMICH  
+- Ruth Freedman, MPH — Former Administrator, MNI, UMICH
+- Fan Meng, Ph.D. — Research Associate Professor, Psychiatry, UMICH
+- Huda Akil, Ph.D. — Director, MNI, UMICH
+- Stanley J. Watson, M.D., Ph.D. — Director, MNI, UMICH
