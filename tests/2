@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -eEuo pipefail
+[ -f ../dirfingerprint ]
+function clean() {
+	rm -rf 2-*
+}
+clean
+mkdir 2-dir
+(
+	cd 2-dir
+	touch -d @0 file1
+	mkdir -p dir-1/dir-12/dir-123 dir-2
+	touch dir-1/dir-12/dir-123/file-1234 dir-2/file-2
+)
+../dirfingerprint hash -c 2-dir > 2-scan
+find 2-dir | ../dirfingerprint hash - > 2-find
+diff 2-scan 2-find
+clean
+echo GOOD

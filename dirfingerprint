@@ -9,26 +9,35 @@ HEADER = "FingerPrint\tDepth\tFileCount\tSubdirCount\t"
 
 
 class DirHashObj:
-    def __init__(self, args, realdir, printdir, cwd, level):
+    def __init__(self):
         self.files = []
         self.dirs = {}
         self.special_count = 0
+        self.md5sum = None
+
+    def init_from_stdin(self, args, paths):
+        if len(paths) > 1:
+            cdir = self.dirs.setdefault(paths[0], DirHashObj())
+            cdir.init_from_stdin(args, paths[1:])
+        else:
+            self.files.append(paths[0])
+
+    def init_from_dir(self, args, path):
         try:
-            with os.scandir(realdir + cwd) as it:
+            with os.scandir(os.path.join(*path)) as it:
                 for entry in sorted(it, key=lambda e: e.name):
                     if entry.is_dir(follow_symlinks=False):
                         if args.one_file_system:
-                            if entry.is_mount():
+                            if os.path.ismount(entry.path):
                                 continue
-                        self.dirs[entry.name] = DirHashObj(
+                        cdir = DirHashObj()
+                        cdir.init_from_dir(
                             args,
-                            realdir,
-                            printdir,
-                            cwd + "/" + entry.name,
-                            level + 1,
+                            path + [entry.name],
                         )
+                        self.dirs[entry.name] = cdir
                     elif args.count_only:
-                        self.files.append([entry.name, 0, 0])
+                        self.files.append(entry.name)
                     elif entry.is_symlink():
                         self.special_count += 1
                     elif entry.is_file():
@@ -43,22 +52,47 @@ class DirHashObj:
                         self.special_count += 1
         except PermissionError as e:
             print(e, file=sys.stderr)
-        self.finger_print(printdir + cwd, level, args)
+        self.finger_print(args, False, path)
 
+    @staticmethod
     def _to_iso_if_not_utf8(sin):
         try:
             return sin.encode("utf-8", "surrogateescape").decode("utf-8")
         except UnicodeDecodeError:
             return sin.encode("utf-8", "surrogateescape").decode("iso-8859-1")
 
-    def finger_print(self, path, level, args):
-        self.total_count = len(self.files)
-        self.subdir_count = len(self.dirs)
+    def find(self, path):
+        if len(path) == 0:
+            return self
+        cdir = self.dirs.get(path[0])
+        if cdir is not None:
+            return cdir.find(path[1:])
+        if len(path) > 1:
+            raise Exception("ERR-008")
+        return None
+
+    def finger_print(self, args, from_stdin, path):
+        if from_stdin:
+            files = []
+            for fl in sorted(self.files):
+                if fl in self.dirs:
+                    continue
+                files.append(fl)
+            dirs = sorted(self.dirs.items())
+            for child_cwd, child_dir in dirs:
+                if child_dir.md5sum is not None:
+                    continue
+                child_dir.finger_print(args, from_stdin, path + [child_cwd])
+        else:
+            files = self.files
+            dirs = self.dirs.items()
+        self.total_count = len(files)
+        self.subdir_count = len(dirs)
         if not args.count_only:
             self.total_bytes = 0
             self.min_time = sys.maxsize
             self.max_time = 0
-            for fl in self.files:
+            for fl in files:
                 self.total_bytes += fl[1]
                 if fl[2] < self.min_time:
                     self.min_time = fl[2]
@@ -66,11 +100,17 @@ class DirHashObj:
                     self.max_time = fl[2]
         md5 = hashlib.md5()
         md5.update(f"{self.special_count}\n".encode())
-        for fname, fsize, ftime in self.files:
-            md5.update(
-                f"{fname} {fsize} {ftime}\n".encode("utf-8", "surrogateescape")
-            )
-        for child_cwd, child_dir in self.dirs.items():
+        if args.count_only:
+            for fname in files:
+                md5.update(f"{fname}\n".encode("utf-8", "surrogateescape"))
+        else:
+            for fname, fsize, ftime in files:
+                md5.update(
+                    f"{fname} {fsize} {ftime}\n".encode(
+                        "utf-8", "surrogateescape"
+                    )
+                )
+        for child_cwd, child_dir in dirs:
             md5.update(
                 f"{child_cwd} {child_dir.md5sum}\n".encode(
                     "utf-8", "surrogateescape"
@@ -85,8 +125,12 @@ class DirHashObj:
                 if self.max_time < child_dir.max_time:
                     self.max_time = child_dir.max_time
                 self.special_count += child_dir.special_count
+        if path == []:  # from_stdin
+            return
         self.md5sum = md5.hexdigest()
-        if level <= args.max_depth or args.max_depth < 0:
+        self.dirs.clear()
+        self.files.clear()
+        if len(path) <= args.max_depth or args.max_depth < 0:
             if args.thousand_separator:
                 self.total_count = f"{self.total_count:,}"
                 self.subdir_count = f"{self.subdir_count:,}"
@@ -94,7 +138,7 @@ class DirHashObj:
                 self.special_count = f"{self.special_count:,}"
             print(
                 self.md5sum,
-                level,
+                len(path),
                 self.total_count,
                 self.subdir_count,
                 "",
@@ -115,21 +159,12 @@ class DirHashObj:
                     sep="\t",
                     end="",
                 )
-            print(DirHashObj._to_iso_if_not_utf8(path))
-        self.dirs.clear()
-
-    def add_dir(self, ano):
-        self.files += ano.files
-        self.special_count += ano.special_count
-        for ano_cwd, ano_child in ano.dirs.items():
-            self_child = self.dirs.get(ano_cwd)
-            if self_child is None:
-                self.dirs[ano_cwd] = ano_child
-            else:
-                self_child.add_dir(ano_child)
+            print(DirHashObj._to_iso_if_not_utf8("/".join(path)))
 
 
 def sub_hash(args):
+    if "-" in args.DIR:
+        args.count_only = True
     print(HEADER, end="")
     if not args.count_only:
         print(
@@ -145,10 +180,30 @@ def sub_hash(args):
     if args.DIR == []:
         args.DIR = "."
     for printdir in args.DIR:
-        realdir = os.path.realpath(printdir)
-        if not os.path.isdir(realdir):
-            raise Exception("ERR-001: %s is not a directory" % realdir)
-        DirHashObj(args, realdir, printdir, "", 0)
+        rdir = DirHashObj()
+        if printdir != "-":
+            realdir = os.path.realpath(printdir)
+            if not os.path.isdir(realdir):
+                raise Exception("ERR-001: %s is not a directory" % realdir)
+            while printdir.endswith("/"):
+                printdir = printdir[:-1]
+            rdir.init_from_dir(args, [printdir])
+        else:
+            prev = []
+            for ln in sys.stdin:
+                ln = ln.rstrip()
+                while ln.endswith("/"):
+                    ln = ln[:-1]
+                cur = ln.strip().split("/")
+                rdir.init_from_stdin(args, cur)
+                depth = len(cur)
+                if len(prev) >= depth:
+                    path = prev[:depth]
+                    cdir = rdir.find(path)
+                    if cdir is not None:
+                        cdir.finger_print(args, True, path)
+                prev = cur
+            rdir.finger_print(args, True, [])
 
 
 class DirDiffObj:
@@ -333,7 +388,14 @@ def main():
     )
     parser_hash.add_argument(
         "DIR",
-        help="directory to process (default: current directory)",
+        help=(
+            "directory to process, or '-' to read from stdin, e.g.,"
+            " 'find | dirfingerprint hash -'"
+            " or 'lfs find /lustre | dirfingerprint hash -'."
+            " Note: when using stdin, empty directories cannot be distinguished"
+            " from files."
+            " (default: current directory)"
+        ),
         nargs="*",
     )
     parser_hash.add_argument(
