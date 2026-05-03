@@ -5,7 +5,7 @@ import os.path
 import sys
 from datetime import datetime
 
-HEADER = "FingerPrint\tDepth\tFileCount\tSubdirCount\t"
+HEADER = "FingerPrint                     \tDepth\tFiles\tSubdirs\t"
 
 
 class DirHashObj:
@@ -130,17 +130,20 @@ class DirHashObj:
         self.md5sum = md5.hexdigest()
         self.dirs.clear()
         self.files.clear()
-        if len(path) <= args.max_depth or args.max_depth < 0:
+        if self.total_count >= args.min_count and (
+            len(path) <= args.max_depth or args.max_depth < 0
+        ):
             if args.thousand_separator:
-                self.total_count = f"{self.total_count:,}"
-                self.subdir_count = f"{self.subdir_count:,}"
-                self.total_bytes = f"{self.total_bytes:,}"
-                self.special_count = f"{self.special_count:,}"
+                s_total_count = f"{self.total_count:,}"
+                s_subdir_count = f"{self.subdir_count:,}"
+            else:
+                s_total_count = self.total_count
+                s_subdir_count = self.subdir_count
             print(
                 self.md5sum,
                 len(path),
-                self.total_count,
-                self.subdir_count,
+                s_total_count,
+                s_subdir_count,
                 "",
                 sep="\t",
                 end="",
@@ -150,11 +153,16 @@ class DirHashObj:
                 if self.total_count > 0:
                     s_min_t = datetime.fromtimestamp(self.min_time).isoformat()
                     s_max_t = datetime.fromtimestamp(self.max_time).isoformat()
+                s_total_bytes = self.total_bytes
+                s_special_count = self.special_count
+                if args.thousand_separator:
+                    s_total_bytes = f"{s_total_bytes:,}"
+                    s_special_count = f"{s_special_count:,}"
                 print(
-                    self.total_bytes,
+                    s_total_bytes,
                     s_min_t,
                     s_max_t,
-                    self.special_count,
+                    s_special_count,
                     "",
                     sep="\t",
                     end="",
@@ -168,15 +176,14 @@ def sub_hash(args):
     print(HEADER, end="")
     if not args.count_only:
         print(
-            "File",
             "Blocks" if args.blocks else "Bytes",
-            "\tFileMinMtime",
-            "\tFileMaxMtime",
-            "\tSpecialCount\t",
+            "\tFileMinMtime       ",
+            "\tFileMaxMtime       ",
+            "\tSpecial\t",
             sep="",
             end="",
         )
-    print("Dir")
+    print("Dirname")
     if args.DIR == []:
         args.DIR = "."
     for printdir in args.DIR:
@@ -343,7 +350,7 @@ class DirDiffObj:
     def read_file(self, dfpfile, is_dest):
         fp = open(dfpfile)
         header = fp.readline()
-        if not header.startswith(HEADER) or not header.endswith("\tDir\n"):
+        if not header.startswith(HEADER) or not header.endswith("\tDirname\n"):
             raise Exception(
                 f"ERR-003: '{dfpfile}' is not a dirfingerprint output file"
             )
@@ -403,8 +410,16 @@ def main():
         "--max-depth",
         type=int,
         default=-1,
-        help="limit output to subdirectories up to MAX_DEPTH"
+        help="limit output to subdirectories up to MAX_DEPTH level deep"
         " (default: no limit)",
+    )
+    parser_hash.add_argument(
+        "-n",
+        "--min-count",
+        type=int,
+        default=0,
+        help="only output subdirectories containing at least MIN_COUNT files"
+        " (default: 0)",
     )
     parser_hash.add_argument(
         "-t",
@@ -449,7 +464,7 @@ def main():
     parser_diff.set_defaults(func=sub_diff)
     args = parser.parse_args()
     if args.version:
-        print("20260502")
+        print("20260503")
     elif hasattr(args, "func"):
         args.func(args)
     else:

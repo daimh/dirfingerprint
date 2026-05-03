@@ -27,6 +27,7 @@ mkdir 1-dir
 )
 ../dirfingerprint hash 1-dir | tee 1-src.dfp > 1-diff
 ../dirfingerprint hash -c 1-dir | tee 1-src-c.dfp >> 1-diff
+../dirfingerprint hash -t 1-dir | tee 1-src-t.dfp >> 1-diff
 (
 	cd 1-dir
 	(
@@ -38,10 +39,13 @@ mkdir 1-dir
 )
 ../dirfingerprint hash 1-dir | tee 1-dest.dfp >> 1-diff
 ../dirfingerprint hash -c 1-dir | tee 1-dest-c.dfp >> 1-diff
+../dirfingerprint hash -t 1-dir | tee 1-dest-t.dfp >> 1-diff
 ../dirfingerprint diff 1-src.dfp 1-dest.dfp >> 1-diff
 ../dirfingerprint diff -r "node1:/home/" 1-src.dfp 1-dest.dfp >> 1-diff
 ../dirfingerprint diff 1-src-c.dfp 1-dest-c.dfp >> 1-diff
 ../dirfingerprint diff -r "node1:/home/" 1-src-c.dfp 1-dest-c.dfp >> 1-diff
+../dirfingerprint diff 1-src-t.dfp 1-dest-t.dfp >> 1-diff
+../dirfingerprint diff -r "node1:/home/" 1-src-t.dfp 1-dest-t.dfp >> 1-diff
 diff 1.base 1-diff
 clean
 echo GOOD

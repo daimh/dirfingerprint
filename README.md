@@ -83,7 +83,6 @@ chmod +x dirfingerprint
 
 ```bash
 (cd /tmp; dirfingerprint hash) > 0.dfp
-column -ts $'\t' 0.dfp
 ```
 
 ### Detect new or moved directories
